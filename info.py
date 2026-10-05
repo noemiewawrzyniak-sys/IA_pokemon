@@ -8,6 +8,8 @@ CUSTO_TERRENO = {
     ".": 1,
 }
 
+CUSTO_CELULA_ESPECIAL = 1
+
 CUSTO_OUTRO = 1
 
 ORIGEM = "1"

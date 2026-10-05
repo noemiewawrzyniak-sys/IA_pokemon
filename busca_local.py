@@ -1,8 +1,6 @@
 import math, random
 import info as cfg
 
-INF = float("inf")
-
 NOMES = list(cfg.PODER_POKEMON)
 PODER = [cfg.PODER_POKEMON[n] for n in NOMES]
 NP = len(NOMES)
@@ -13,33 +11,32 @@ NG = len(GINASIOS)
 E = cfg.ENERGIA_INICIAL
 SOMA = [sum(PODER[i] for i in range(NP) if m >> i & 1) for m in range (1 << NP)]
 BITS = [[i for i in range(NP) if m >> i & 1] for m in range (1 << NP)]
-PESO = 500.0
 
 def usos(sol):
-    """ Quantas vezes o pokemon batalha """
     uso = [0] * NP
     for m in sol:
         for i in BITS[m]:
             uso[i] += 1
     return uso
 
-def violacao(uso):
-    v = sum(u - E for u in uso if u > E)
-    if min(uso) >= E:
-        v+=1
-    return v
-
-def custo_batalhas(sol):
-    return sum(DIF[g] / SOMA[m] for g, m in enumerate(sol))
+def valida(sol):
+    uso = usos(sol)
+    return max(uso) <= E and min(uso) < E
 
 def custo(sol):
-    return custo_batalhas(sol) + PESO * violacao(usos(sol))
+    return sum(DIF[g] / SOMA[m] for g, m in enumerate(sol))
 
-def custo_se_viavel(sol):
-    return custo(sol) if violacao(usos(sol)) == 0 else INF
 
 def solucao_aleatoria(rng):
-    return [rng.randrange(1,1 << NP) for _ in range(NG)]
+    restante = [E] * NP
+    restante[rng.randrange(NP)] = E - 1
+    sol = []
+    for _ in range(NG):
+        p = rng.choice([i for i in range(NP) if restante[i] > 0])
+        restante[p] -= 1
+        sol.append(1 << p)
+    return sol
+
 
 def aplicar(sol, mov):
     nova = sol[:]
@@ -111,12 +108,13 @@ def simulated_annealing(rng, T0 = 10.0, Tmin = 0.01, alfa = 0.90, iter_por_T=300
             mov = movimento_aleatorio(sol, rng)
             if mov is None: continue
             proximo = aplicar(sol, mov)
+            if not valida(proximo): continue
             valor_proximo = -custo(proximo)
             dE = valor_proximo - valor
             if dE > 0 or rng.random() < math.exp(dE/T):
                 sol, valor = proximo, valor_proximo
         T *= alfa
-    return sol, custo_se_viavel(sol)
+    return sol, custo(sol)
 
 def hill_climbing(rng):
     sol = solucao_aleatoria(rng)
@@ -125,15 +123,16 @@ def hill_climbing(rng):
         melhor_viz, c_viz = None, c
         for mov in todos_movimentos(sol):
             viz = aplicar(sol, mov)
+            if not valida(viz): continue
             cv = custo(viz)
             if cv < c_viz - 1e-12:
                 melhor_viz, c_viz = viz, cv
         if melhor_viz is None:
-            return sol, custo_se_viavel(sol)
+            return sol, c
         sol, c = melhor_viz, c_viz
 
 def random_restart_hill_climbing(rng, reinicios = 10):
-    melhor, c_melhor = None, INF
+    melhor, c_melhor = None, float("inf")
     for _ in range(reinicios):
         s, c = hill_climbing(rng)
         if c < c_melhor: melhor, c_melhor = s, c
@@ -143,9 +142,9 @@ def relatorio(sol):
     uso = usos(sol)
     print("Ginasio Dificuldade Pokemon_que_lutam Tempo")
     for g, m in enumerate(sol):
-        print(f"   {GINASIOS[g]:<6} {DIF[g]:>8}     {'+'.join(NOMES[i] for i in BITS[m]):<24}{DIF[g]/SOMA[m]:8.3f}")
-        print("\nEnergia final :", {NOMES[i]: E - uso[i] for i in range(NP)})
-        print("Custo total batalhas: %.4f" % custo_batalhas(sol))
+        print(f"  {GINASIOS[g]:<6} {DIF[g]:>8}    {'+'.join(NOMES[i] for i in BITS[m]):<24}{DIF[g] / SOMA[m]:8.3f}")
+    print("\nEnergia final:", {NOMES[i]: E - uso[i] for i in range(NP)})
+    print("Custo total das batalhas: %.4f" % custo(sol))
 
 if __name__ == "__main__":
     import time
